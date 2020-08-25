@@ -3,8 +3,26 @@
 import os
 import sys
 import csv
+import json
+import subprocess
 from typing import Dict, List, Any
-from countryinfo import CountryInfo
+
+try:
+    from countryinfo import CountryInfo
+except ImportError:
+    import pip
+    print('Failed to import countrinfo. Trying to install')
+    if hasattr(pip, 'main'):
+        pip.main(['install', 'countryinfo'])
+    else:
+        pip._internal.main(['install', 'countryinfo'])
+    try:
+        from countryinfo import CountryInfo
+    except ImportError:
+        sys.stdout.write('Failed to install and import countryinfo!\nInstall it yourself!\n')
+        sys.exit(-1)
+    print('Successfully installed and imported countryinfo.')
+
 
 # In order for this program to work you need to:
 # 1) install 'countryinfo' pip package to your environment
@@ -35,12 +53,26 @@ key_confirmed = 'confirmed'
 key_recovered = 'recovered'
 case_types = [key_deaths, key_confirmed, key_recovered]
 
+folder_prefix = '.'
+folder_parrent = '..'
+folder_COVID_19 = 'COVID-19'
 folder_data = 'csse_covid_19_data'
 folder_timeseries = 'csse_covid_19_time_series'
 
-files = {key_deaths: os.path.join(folder_data, folder_timeseries, 'time_series_covid19_deaths_global.csv'),
-         key_confirmed: os.path.join(folder_data, folder_timeseries, 'time_series_covid19_confirmed_global.csv'),
-         key_recovered: os.path.join(folder_data, folder_timeseries, 'time_series_covid19_recovered_global.csv')}
+
+if not os.path.exists(folder_data):
+    folder_prefix = os.path.join(folder_parrent, folder_COVID_19)
+    if os.path.exists(os.path.join(folder_prefix, folder_data)):
+        # print('Using ..' + os.path.sep + 'COVID-19')
+        pass
+    else:
+        sys.stderr.write('Could not find data\n')
+        sys.exit(-1)
+
+
+files = {key_deaths: os.path.join(folder_prefix, folder_data, folder_timeseries, 'time_series_covid19_deaths_global.csv'),
+         key_confirmed: os.path.join(folder_prefix, folder_data, folder_timeseries, 'time_series_covid19_confirmed_global.csv'),
+         key_recovered: os.path.join(folder_prefix, folder_data, folder_timeseries, 'time_series_covid19_recovered_global.csv')}
 
 #                   JHU database : CountryInfo
 exceptional_names = {'Andorra': None,
@@ -82,6 +114,12 @@ exceptional_populations = {
 }
 
 
+def get_git_revision_hash(folder: str):
+    # TODO Test on Windows to see if UTF-8 fits
+    retval = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=folder)
+    return retval.decode('utf-8').replace('\n', '')
+
+
 def enofile(fname: str):
     if fname in files:
         return 'ERROR: File "' + files[fname] + '" does not exist!'
@@ -118,6 +156,7 @@ def row2dict(row: List, header: List, type: str = None) -> Dict[str, Any]:
 
 
 def load_json(type: str, countries: Dict = None):
+    # TODO rename
     if countries is None:
         countries = {}
     with open(files[type]) as fcsv:
@@ -299,9 +338,42 @@ def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str
               + str(ratings[country][key_confirmed_per_population]))
 
 
+def get_cachefile_name() -> str:
+    hash = get_git_revision_hash(folder_prefix)
+    if len(hash) != 40:
+        sys.stderr.write('git has invalid\n')
+        return None
+    name = hash + '.cash.json'
+    return name
+
+
+def load_cache_if_available(expected_cachefile: str) -> Dict:
+    if expected_cachefile is None:
+        return None
+
+    if not os.path.exists(expected_cachefile) or not os.path.isfile(expected_cachefile):
+        return None
+    with open(expected_cachefile, 'r') as f:
+        try:
+            retval = json.load(f)
+            print('Loaded from ' + expected_cachefile + ' based on `git rev-parse HEAD`')
+        except json.decoder.JSONDecodeError:
+            retval = None
+    return retval
+
+
 if __name__ == '__main__':
     # print(os.path.dirname(os.path.realpath(__file__)))
     print('[WUHAN FLU rating calculator]')
-    data = countries2json()
+    cachefile = get_cachefile_name()
+    data = load_cache_if_available(cachefile)
+    # print(data)
+    if data is None:
+        data = countries2json()
+        with open(cachefile, 'w') as f:
+            print('Writing ' + cachefile)
+            json.dump(data, f)
+    else:
+        print()
     # print(data)
     print_topmost_20(data, min_population=1000000)
