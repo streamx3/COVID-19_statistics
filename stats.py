@@ -41,9 +41,9 @@ key_mortality = 'mortality'
 key_lethality = 'lethality'
 key_population = 'population'
 key_territories = 'territories'
-key_active_vs_unknown = 'active_vs_unknown'  # unknown stands for population - confirmeds
-key_active_per_population = 'active_per_population'
-key_confirmed_per_population = 'confirmed_vs_population'
+key_active_per_unknown = 'active per unknown'  # unknown stands for population - confirmeds
+key_active_per_population = 'active per population'
+key_confirmed_per_population = 'confirmed per population'
 key_daily_confirmed_per_population = 'daily_confirmed_per_population'
 
 key_totals = 'totals'
@@ -58,6 +58,8 @@ folder_parrent = '..'
 folder_COVID_19 = 'COVID-19'
 folder_data = 'csse_covid_19_data'
 folder_timeseries = 'csse_covid_19_time_series'
+
+file_ext_cache_json = '.cash.json'
 
 
 if not os.path.exists(folder_data):
@@ -114,7 +116,7 @@ exceptional_populations = {
 }
 
 
-def get_git_revision_hash(folder: str):
+def get_git_revision_hash(folder: str) -> str:
     # TODO Test on Windows to see if UTF-8 fits
     retval = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=folder)
     return retval.decode('utf-8').replace('\n', '')
@@ -274,12 +276,14 @@ def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str
         if type(deaths_cases) is str:
             deaths_cases = int(deaths_cases)
         mortality = deaths_cases / data[country][key_population] * 1000000
+        mortality = round(mortality, 3)
 
         # Lethality, % of dead per known infected
         confirmed_cases = data[country][key_totals][key_confirmed][date]
         if type(confirmed_cases) is str:
             confirmed_cases = int(confirmed_cases)
         lethality = deaths_cases / confirmed_cases * 100
+        lethality = round(lethality, 3)
 
         # Active_vs_unknown
         recovered_cases = data[country][key_totals][key_recovered][date]
@@ -288,27 +292,30 @@ def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str
         active_cases = confirmed_cases - recovered_cases - deaths_cases
         unknown_cases = data[country][key_population] - confirmed_cases
         active_vs_unknown = active_cases / unknown_cases
+        active_vs_unknown = round(active_vs_unknown, 3)
 
         # Active_per_population
         active_per_population = active_cases / population * 100
+        active_per_population = round(active_per_population, 3)
 
         # Confirmed_per_population, %
         confirmed_per_population = confirmed_cases / data[country][key_population] * 100
+        confirmed_per_population = round(confirmed_per_population, 3)
 
         # Daily_confirmed_per_population
 
         ratings[country] = {key_mortality: mortality,
-                           key_lethality: lethality,
-                           key_active_vs_unknown: active_vs_unknown,
-                           key_deaths: deaths_cases,
-                           key_confirmed: confirmed_cases,
-                           key_active: active_cases,
-                           key_active_per_population: active_per_population,
-                           key_confirmed_per_population: confirmed_per_population,
-                           key_population: data[country][key_population],
-                           key_deaths: data[country][key_totals][key_deaths][date]}
+                            key_lethality: lethality,
+                            key_active_per_unknown: active_vs_unknown,
+                            key_deaths: deaths_cases,
+                            key_confirmed: confirmed_cases,
+                            key_active: active_cases,
+                            key_active_per_population: active_per_population,
+                            key_confirmed_per_population: confirmed_per_population,
+                            key_population: data[country][key_population],
+                            key_deaths: data[country][key_totals][key_deaths][date]}
 
-    rating_keys = [key_mortality, key_lethality, key_active_per_population, key_active_vs_unknown, key_confirmed_per_population]
+    rating_keys = [key_mortality, key_lethality, key_active_per_population, key_active_per_unknown, key_confirmed_per_population]
     tops = {}
     for rating_key in rating_keys:
         rating = {k: v for k, v in sorted(ratings.items(), key=lambda item: item[1][rating_key])}
@@ -317,33 +324,41 @@ def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str
         tops[rating_key] = topmost_20  # placing topmost_20.reverse() retults in using None as value,
         # since .reverse() has internal effect and returns nothing
 
-    print('\nMORTALITY RATE:\nCountry,Population,Deaths,Mortality(per 1M)')
-    for country in tops[key_mortality]:
-        print(country + "," + str(ratings[country][key_population]) + ',' + str(ratings[country][key_deaths]) + ','
-              + str(ratings[country][key_mortality]))
+    tab_data = {key_mortality: [],
+                key_lethality: [],
+                key_active_per_population: [],
+                key_confirmed_per_population: []}
 
-    print('\nKNOWN LETHALITY RATE:\nCountry,Confirmed,Deaths,%')
-    for country in tops[key_lethality]:
-        print(country + "," + str(ratings[country][key_confirmed]) + ',' + str(ratings[country][key_deaths]) + ','
-              + str(ratings[country][key_lethality]))
+    def print_rating(header: str, key: str, dimmension: str, col1: str, col2: str = None, col3: str = None):
+        print('\n' + header + ':')
+        print(' N ' + key_country.capitalize() + ' ' + col1.capitalize()
+              + ((' ' + col2.capitalize()) if col2 else '')
+              + ((' ' + col3.capitalize()) if col3 else '')
+              + ' ' + key.capitalize() + '[' + dimmension + ']')
 
-    print('\nKnown active per population:\nCountry,Active,Population,%')
-    for country in tops[key_active_per_population]:
-        print(country + "," + str(ratings[country][key_active]) + ',' + str(ratings[country][key_population]) + ','
-              + str(ratings[country][key_active_per_population]))
+        i = 1
+        for country in tops[key]:
+            n = ''
+            if i < 10:
+                n = ' '
+            n += str(i) + ' '
+            i += 1
+            print(n + country + ',' + str(ratings[country][col1]) +
+                  ((',' + str(ratings[country][col2])) if col2 is not None else '') +
+                  ((',' + str(ratings[country][col3])) if col3 is not None else '') +
+                  ',' + str(ratings[country][key]))
 
-    print('\nConfirmed per population:\nCountry,Confirmed,Population,%')
-    for country in tops[key_confirmed_per_population]:
-        print(country + "," + str(ratings[country][key_confirmed]) + ',' + str(ratings[country][key_population]) + ','
-              + str(ratings[country][key_confirmed_per_population]))
+    print_rating('MORTALITY', key_mortality, 'per1M', key_population, key_deaths)
+    print_rating('KNOWN LETHALITY', key_lethality, '%', key_confirmed, key_deaths)
+    print_rating('KNOWN ACTIVE PER POPULATION', key_active_per_population, '%', key_active, key_population)
+    print_rating('CONFIRMED PER POPULATION', key_confirmed_per_population, '%', key_confirmed, key_population)
 
 
-def get_cachefile_name() -> str:
-    hash = get_git_revision_hash(folder_prefix)
+def get_cachefile_name(hash: str) -> str:
     if len(hash) != 40:
         sys.stderr.write('git has invalid\n')
         return None
-    name = hash + '.cash.json'
+    name = hash + file_ext_cache_json
     return name
 
 
@@ -362,10 +377,32 @@ def load_cache_if_available(expected_cachefile: str) -> Dict:
     return retval
 
 
+def invalidate_cache(valid_hash: str):
+    # Filter function
+    def func_filter_ending_matches(el):
+        if type(el) is not str:
+            return False
+        return el.endswith(file_ext_cache_json)
+
+    data = os.listdir('.')
+    caches_iterator = filter(func_filter_ending_matches, data)
+    caches = list(caches_iterator)
+
+    for c in caches:
+        if c != str(valid_hash + file_ext_cache_json):
+            try:
+                os.remove('.' + os.path.sep + c)
+            except Exception as e:
+                return
+            print('Removed outdated cache ' + c)
+
+
 if __name__ == '__main__':
-    # print(os.path.dirname(os.path.realpath(__file__)))
     print('[WUHAN FLU rating calculator]')
-    cachefile = get_cachefile_name()
+    # print(os.path.dirname(os.path.realpath(__file__)))
+    hash = get_git_revision_hash(folder_prefix)
+    cachefile = get_cachefile_name(hash)
+    invalidate_cache(hash)
     data = load_cache_if_available(cachefile)
     # print(data)
     if data is None:
