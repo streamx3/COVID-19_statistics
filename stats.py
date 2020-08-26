@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 
+# In order for this program to work you need to:
+# 1) install 'countryinfo' pip package to your environment
+# 2) put this file to the clone folder of https://github.com/CSSEGISandData/COVID-19
+
 import os
 import sys
 import csv
 import json
 import subprocess
 from typing import Dict, List, Any
+from enum import Enum
 
 try:
     from countryinfo import CountryInfo
 except ImportError:
     import pip
+
     print('Failed to import countrinfo. Trying to install')
     if hasattr(pip, 'main'):
         pip.main(['install', 'countryinfo'])
@@ -24,9 +30,10 @@ except ImportError:
     print('Successfully installed and imported countryinfo.')
 
 
-# In order for this program to work you need to:
-# 1) install 'countryinfo' pip package to your environment
-# 2) put this file to the clone folder of https://github.com/CSSEGISandData/COVID-19
+class EAlign(Enum):
+    default = 0
+    left = 1
+    right = 2
 
 
 key_lat = 'lat'
@@ -37,13 +44,13 @@ key_active = 'active'
 key_country = 'country'
 key_province = 'province'
 key_mainland = 'mainland'
-key_mortality = 'mortality'
-key_lethality = 'lethality'
+key_mortality = 'm.'
+key_lethality = 'let'
 key_population = 'population'
 key_territories = 'territories'
-key_active_per_unknown = 'active per unknown'  # unknown stands for population - confirmeds
-key_active_per_population = 'active per population'
-key_confirmed_per_population = 'confirmed per population'
+key_active_per_unknown = 'APU'  # unknown stands for population - confirmeds
+key_active_per_population = 'APP'
+key_confirmed_per_population = 'CPP'
 key_daily_confirmed_per_population = 'daily_confirmed_per_population'
 
 key_totals = 'totals'
@@ -59,8 +66,7 @@ folder_COVID_19 = 'COVID-19'
 folder_data = 'csse_covid_19_data'
 folder_timeseries = 'csse_covid_19_time_series'
 
-file_ext_cache_json = '.cash.json'
-
+file_ext_cache_json = '.cache.json'
 
 if not os.path.exists(folder_data):
     folder_prefix = os.path.join(folder_parrent, folder_COVID_19)
@@ -71,43 +77,46 @@ if not os.path.exists(folder_data):
         sys.stderr.write('Could not find data\n')
         sys.exit(-1)
 
-
-files = {key_deaths: os.path.join(folder_prefix, folder_data, folder_timeseries, 'time_series_covid19_deaths_global.csv'),
-         key_confirmed: os.path.join(folder_prefix, folder_data, folder_timeseries, 'time_series_covid19_confirmed_global.csv'),
-         key_recovered: os.path.join(folder_prefix, folder_data, folder_timeseries, 'time_series_covid19_recovered_global.csv')}
+files = {key_deaths: os.path.join(folder_prefix, folder_data, folder_timeseries,
+                                  'time_series_covid19_deaths_global.csv'),
+         key_confirmed: os.path.join(folder_prefix, folder_data, folder_timeseries,
+                                     'time_series_covid19_confirmed_global.csv'),
+         key_recovered: os.path.join(folder_prefix, folder_data, folder_timeseries,
+                                     'time_series_covid19_recovered_global.csv')}
 
 #                   JHU database : CountryInfo
 exceptional_names = {'Andorra': None,
-                    'Bahamas': 'The Bahamas',
-                    'Cabo Verde': 'Cape Verde',
-                    'Congo (Brazzaville)': 'Republic of the Congo',
-                    'Congo (Kinshasa)': 'Democratic Republic of the Congo',
-                    "Cote d'Ivoire": 'Ivory Coast',
-                    'Diamond Princess': None,
-                    'Czechia': 'Czech Republic',
-                    'Eswatini': 'Swaziland',
-                    'Gambia': 'The Gambia',
-                    'Holy See': None,  # Extremely slippery, due to Vatican special status
-                    'Korea, South': 'South Korea',
-                    'Montenegro': None,
-                    'North Macedonia': 'Republic of Macedonia',
-                    'Serbia': None,  # Actually exists in countryinfo! Probably a bug.
-                    'Taiwan*': 'Taiwan',
-                    'US': 'United States',
-                    'Timor-Leste': None,
-                    'West Bank and Gaza': None,
-                    'Kosovo': None,
-                    'Burma': None, # Surprisingly is missing in a package
-                    'MS Zaandam': None,
-                    'Sao Tome and Principe': 'São Tomé and Príncipe'}
-
+                     'Bahamas': 'The Bahamas',
+                     'Cabo Verde': 'Cape Verde',
+                     'Congo (Brazzaville)': 'Republic of the Congo',
+                     'Congo (Kinshasa)': 'Democratic Republic of the Congo',
+                     "Cote d'Ivoire": 'Ivory Coast',
+                     'Diamond Princess': None,
+                     'Czechia': 'Czech Republic',
+                     'Eswatini': 'Swaziland',
+                     'Gambia': 'The Gambia',
+                     'Holy See': None,  # Extremely slippery, due to Vatican special status
+                     'Korea, South': 'South Korea',
+                     'Montenegro': None,
+                     'North Macedonia': 'Republic of Macedonia',
+                     'Serbia': None,  # Actually exists in countryinfo! Probably a bug.
+                     'Taiwan*': 'Taiwan',
+                     'US': 'United States',
+                     'Timor-Leste': None,
+                     'West Bank and Gaza': None,
+                     'Kosovo': None,
+                     'Burma': None,  # Surprisingly is missing in a package
+                     'MS Zaandam': None,
+                     'Sao Tome and Principe': 'São Tomé and Príncipe'}
 
 exceptional_populations = {
-    'Andorra': 77543, # http://citypopulation.de/en/andorra/
+    'Andorra': 77543,  # http://citypopulation.de/en/andorra/
     # N/A since on ship is particially evacuated and moving 'Diamond Princess': 3711 # https://en.wikipedia.org/wiki/COVID-19_pandemic_on_Diamond_Princess
     'Montenegro': 622359,  # http://www.monstat.org/eng/page.php?id=234&pageid=48
-    'Timor-Leste': 1183643,  # http://www.statistics.gov.tl/category/publications/census-publications/
-    'West Bank and Gaza': 2939418,  # 2018 via CIA https://www.cia.gov/library/publications/the-world-factbook/geos/we.html
+    'Timor-Leste': 1183643,
+    # http://www.statistics.gov.tl/category/publications/census-publications/
+    'West Bank and Gaza': 2939418,
+    # 2018 via CIA https://www.cia.gov/library/publications/the-world-factbook/geos/we.html
     'Kosovo': 1810463,  # https://countrymeters.info/en/Kosovo
     'Burma': 53582855,  # 2017 http://www.worldometers.info/world-population/myanmar-population/
     'Holy See': 825,  # https://www.vaticanstate.va/it/stato-governo/note-generali/popolazione.html
@@ -193,7 +202,8 @@ def countries2json() -> Dict[str, Any]:
         ter = countries[country][key_territories]
         n_territories += len(ter)
 
-    print('Impored ' + str(len(countries)) + ' countries with ' + str(n_territories) + ' territories from CSV.')
+    print('Impored ' + str(len(countries)) + ' countries with ' + str(n_territories) + \
+          ' territories from CSV.')
     # Processing imported data
     missing_countries = []
     no_mainlands = []
@@ -205,6 +215,7 @@ def countries2json() -> Dict[str, Any]:
         def add_population(country, name=country):
             country_info = CountryInfo(name)
             countries[country][key_population] = country_info.population()
+
         if is_country_name_valid(country):
             add_population(country)
         else:
@@ -228,13 +239,16 @@ def countries2json() -> Dict[str, Any]:
                         continue
                     for date in countries[country][key_territories][territory][case_type]:
                         if date not in countries[country][key_totals][case_type]:
-                            countries[country][key_totals][case_type][date] = int(countries[country][key_territories][territory][case_type][date])
+                            countries[country][key_totals][case_type][date] = \
+                                int(countries[country][key_territories][territory][case_type][date])
                         else:
-                            added = int(countries[country][key_territories][territory][case_type][date])
+                            added = \
+                                int(countries[country][key_territories][territory][case_type][date])
                             countries[country][key_totals][case_type][date] += added
         else:
             for case_type in case_types:
-                countries[country][key_totals][case_type] = countries[country][key_territories][key_mainland][case_type]
+                countries[country][key_totals][case_type] = \
+                    countries[country][key_territories][key_mainland][case_type]
             del countries[country][key_territories]
 
         # Writing progress
@@ -246,6 +260,62 @@ def countries2json() -> Dict[str, Any]:
     print(missing_countries)
     # print('No mainlands: ' + ', '.join(no_mainlands))
     return countries
+
+
+def string_fit(string: str, size: int, align: EAlign = EAlign.left) -> str:
+    strlen = len(string)
+    delta = size - strlen
+    if delta > 0:
+        if align == EAlign.left:
+            for i in range(delta):
+                string += ' '
+        else:
+            for i in range(delta):
+                string = ' ' + string
+    elif delta < -1:
+        string = string[:size]
+    return string
+
+
+def print_table(array: [[str]], header_align: EAlign = EAlign.left,
+                data_align: EAlign = EAlign.right, header: bool = True,
+                col2_align: EAlign = EAlign.default) -> [str]:
+    rows = len(array)
+    columns = 0
+    sizes = []
+
+    # Calculate MAX columns and max size for each column
+    for row in array:
+        if len(row) > columns:
+            columns = len(row)
+
+    for i in range(columns):
+        sizes.append(0)
+
+    for row in array:
+        i = 0
+        for cell in row:
+            len_cell = len(cell)
+            if sizes[i] < len_cell:
+                sizes[i] = len_cell
+            i += 1
+
+    retval = []
+    # Print table cells
+    for row in array:
+        i = 0
+        rowbuf = ''
+        for cell in row:
+            if header and array[0] == row:
+                rowbuf += string_fit(cell, sizes[i], align=header_align) + ' '
+            else:
+                if col2_align != EAlign.default and cell == row[1]:
+                    rowbuf += string_fit(cell, sizes[i], align=col2_align) + ' '
+                else:
+                    rowbuf += string_fit(cell, sizes[i], align=data_align) + ' '
+            i += 1
+        print(rowbuf)
+        # retval.append(rowbuf)
 
 
 def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str = None):
@@ -315,26 +385,39 @@ def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str
                             key_population: data[country][key_population],
                             key_deaths: data[country][key_totals][key_deaths][date]}
 
-    rating_keys = [key_mortality, key_lethality, key_active_per_population, key_active_per_unknown, key_confirmed_per_population]
+    rating_keys = [key_mortality, key_lethality, key_active_per_population,
+                   key_active_per_unknown, key_confirmed_per_population]
     tops = {}
     for rating_key in rating_keys:
         rating = {k: v for k, v in sorted(ratings.items(), key=lambda item: item[1][rating_key])}
         topmost_20 = list(rating)[-20:]
         topmost_20.reverse()
-        tops[rating_key] = topmost_20  # placing topmost_20.reverse() retults in using None as value,
-        # since .reverse() has internal effect and returns nothing
+        tops[rating_key] = topmost_20  # Placing topmost_20.reverse() retults in using None as
+        # value, since .reverse() has internal effect and returns nothing
 
     tab_data = {key_mortality: [],
                 key_lethality: [],
                 key_active_per_population: [],
                 key_confirmed_per_population: []}
 
-    def print_rating(header: str, key: str, dimmension: str, col1: str, col2: str = None, col3: str = None):
+    def print_rating(header: str, key: str, dimmension: str, col1: str,
+                     col2: str = None, col3: str = None):
+        array2d = []
         print('\n' + header + ':')
-        print(' N ' + key_country.capitalize() + ' ' + col1.capitalize()
-              + ((' ' + col2.capitalize()) if col2 else '')
-              + ((' ' + col3.capitalize()) if col3 else '')
-              + ' ' + key.capitalize() + '[' + dimmension + ']')
+        table_header = ['N', key_country.capitalize(), col1.capitalize()]
+        if col2:
+            table_header.append(col2.capitalize())
+        if col3:
+            table_header.append(col3.capitalize())
+        table_header.append(key.capitalize() + '[' + dimmension + ']')
+
+        # print(table_header)
+        array2d.append(table_header)
+
+        # print(' N ' + key_country.capitalize() + ' ' + col1.capitalize()
+        #       + ((' ' + col2.capitalize()) if col2 else '')
+        #       + ((' ' + col3.capitalize()) if col3 else '')
+        #       + ' ' + key.capitalize() + '[' + dimmension + ']')
 
         i = 1
         for country in tops[key]:
@@ -343,20 +426,34 @@ def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str
                 n = ' '
             n += str(i) + ' '
             i += 1
-            print(n + country + ',' + str(ratings[country][col1]) +
-                  ((',' + str(ratings[country][col2])) if col2 is not None else '') +
-                  ((',' + str(ratings[country][col3])) if col3 is not None else '') +
-                  ',' + str(ratings[country][key]))
+            row = [n, country, str(ratings[country][col1])]
+            if col2:
+                row.append(str(ratings[country][col2]))
+            if col3:
+                row.append(str(ratings[country][col3]))
+            row.append(str(ratings[country][key]))
+            # print(row)
+            array2d.append(row)
+            # print(n + country + ',' + str(ratings[country][col1]) +
+            #       ((',' + str(ratings[country][col2])) if col2 is not None else '') +
+            #       ((',' + str(ratings[country][col3])) if col3 is not None else '') +
+            #       ',' + str(ratings[country][key]))
+        print_table(array2d, header_align=EAlign.left, data_align=EAlign.right,
+                    header=True, col2_align=EAlign.left)
 
-    print_rating('MORTALITY', key_mortality, 'per1M', key_population, key_deaths)
-    print_rating('KNOWN LETHALITY', key_lethality, '%', key_confirmed, key_deaths)
-    print_rating('KNOWN ACTIVE PER POPULATION', key_active_per_population, '%', key_active, key_population)
-    print_rating('CONFIRMED PER POPULATION', key_confirmed_per_population, '%', key_confirmed, key_population)
+
+    arr_mortality = print_rating('MORTALITY', key_mortality, 'per1M', key_population, key_deaths)
+    arr_lethality = print_rating('KNOWN LETHALITY', key_lethality, '%', key_confirmed, key_deaths)
+    arr_kn_pe_pop = print_rating('KNOWN ACTIVE PER POPULATION', key_active_per_population, '%',
+                                 key_active, key_population)
+    arr_conf_p_pop = print_rating('CONFIRMED PER POPULATION', key_confirmed_per_population, '%',
+                 key_confirmed, key_population)
+
 
 
 def get_cachefile_name(hash: str) -> str:
     if len(hash) != 40:
-        sys.stderr.write('git has invalid\n')
+        sys.stderr.write('git hash invalid\n')
         return None
     name = hash + file_ext_cache_json
     return name
