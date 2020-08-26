@@ -395,10 +395,11 @@ def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str
         tops[rating_key] = topmost_20  # Placing topmost_20.reverse() retults in using None as
         # value, since .reverse() has internal effect and returns nothing
 
-    tab_data = {key_mortality: [],
-                key_lethality: [],
-                key_active_per_population: [],
-                key_confirmed_per_population: []}
+    # Cond.Capicalize: if not 'ALL_UPPERCASE' then 'Capitalize'
+    def ccapitalize(string: str):
+        if string.upper() != string:
+            string = string.capitalize()
+        return string
 
     def print_rating(header: str, key: str, dimmension: str, col1: str,
                      col2: str = None, col3: str = None):
@@ -406,18 +407,12 @@ def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str
         print('\n' + header + ':')
         table_header = ['N', key_country.capitalize(), col1.capitalize()]
         if col2:
-            table_header.append(col2.capitalize())
+            table_header.append(ccapitalize(col2))
         if col3:
-            table_header.append(col3.capitalize())
-        table_header.append(key.capitalize() + '[' + dimmension + ']')
+            table_header.append(ccapitalize(col3))
+        table_header.append(ccapitalize(key) + '[' + dimmension + ']')
 
-        # print(table_header)
         array2d.append(table_header)
-
-        # print(' N ' + key_country.capitalize() + ' ' + col1.capitalize()
-        #       + ((' ' + col2.capitalize()) if col2 else '')
-        #       + ((' ' + col3.capitalize()) if col3 else '')
-        #       + ' ' + key.capitalize() + '[' + dimmension + ']')
 
         i = 1
         for country in tops[key]:
@@ -432,12 +427,7 @@ def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str
             if col3:
                 row.append(str(ratings[country][col3]))
             row.append(str(ratings[country][key]))
-            # print(row)
             array2d.append(row)
-            # print(n + country + ',' + str(ratings[country][col1]) +
-            #       ((',' + str(ratings[country][col2])) if col2 is not None else '') +
-            #       ((',' + str(ratings[country][col3])) if col3 is not None else '') +
-            #       ',' + str(ratings[country][key]))
         print_table(array2d, header_align=EAlign.left, data_align=EAlign.right,
                     header=True, col2_align=EAlign.left)
 
@@ -448,7 +438,6 @@ def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str
                                  key_active, key_population)
     arr_conf_p_pop = print_rating('CONFIRMED PER POPULATION', key_confirmed_per_population, '%',
                  key_confirmed, key_population)
-
 
 
 def get_cachefile_name(hash: str) -> str:
