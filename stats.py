@@ -495,13 +495,13 @@ def invalidate_cache(valid_hash: str):
 def print_country_rating(country: str, data: Dict):
     remap = {
         key_mortality: 'Mortality [per 1M]',
-        key_lethality: 'Lethality [%]',
-        key_active_per_unknown: 'Active per unknown [%]',
+        key_lethality: 'Known lethality [%]',
+        key_active_per_unknown: 'Known active per unknown [%]',
         key_deaths: 'Deaths',
-        key_confirmed: 'Confirmed',
-        key_active: 'Active',
-        key_active_per_population: 'Active per population [%]',
-        key_confirmed_per_population: 'Confirmed per population [%]',
+        key_confirmed: 'Known confirmed',
+        key_active: 'Known active',
+        key_active_per_population: 'Known active per population [%]',
+        key_confirmed_per_population: 'Known confirmed per population [%]',
         key_population: 'Population'
     }
     cdata = data[key_ratings][country]
@@ -520,6 +520,7 @@ if __name__ == '__main__':
     hash = get_git_revision_hash(folder_prefix)
     cachefile = get_cachefile_name(hash)
     invalidate_cache(hash)
+    # TODO remove loading on invalidataion
     data = load_cache_if_available(cachefile)
     # print(data)
     if data is None:
