@@ -45,7 +45,7 @@ key_country = 'country'
 key_ratings = 'ratings'
 key_province = 'province'
 key_mainland = 'mainland'
-key_mortality = 'm.'
+key_mortality = 'Mort'
 key_lethality = 'let'
 key_population = 'population'
 key_invalidate = 'invalidate'
@@ -441,7 +441,7 @@ def print_topmost_20(ratings: Dict[str, Any]):
                     header=True, col2_align=EAlign.left)
 
     # TODO Continue here to implement 2x2 tables layout
-    arr_mortality = print_rating('MORTALITY', key_mortality, 'per1M', key_population, key_deaths)
+    arr_mortality = print_rating('MORTALITY', key_mortality, '/1M', key_population, key_deaths)
     arr_lethality = print_rating('KNOWN LETHALITY', key_lethality, '%', key_confirmed, key_deaths)
     arr_kn_pe_pop = print_rating('KNOWN ACTIVE PER POPULATION', key_active_per_population, '%',
                                  key_active, key_population)
@@ -492,12 +492,30 @@ def invalidate_cache(valid_hash: str):
             print('Removed outdated cache ' + c)
 
 
-def print_country_rating(contry: Dict):
-    pass
+def print_country_rating(country: str, data: Dict):
+    remap = {
+        key_mortality: 'Mortality [per 1M]',
+        key_lethality: 'Lethality [%]',
+        key_active_per_unknown: 'Active per unknown [%]',
+        key_deaths: 'Deaths',
+        key_confirmed: 'Confirmed',
+        key_active: 'Active',
+        key_active_per_population: 'Active per population [%]',
+        key_confirmed_per_population: 'Confirmed per population [%]',
+        key_population: 'Population'
+    }
+    cdata = data[key_ratings][country]
+    print('[' + country + ']')
+    for k in cdata:
+        if type(cdata[k]) is not str:
+            print(remap[k] + ': ' + str(cdata[k]))
+        else:
+            print(remap[k] + ': ' + cdata[k])
 
 
 if __name__ == '__main__':
     print('[WUHAN FLU rating calculator]')
+    # TODO handle launch from different directory
     # print(os.path.dirname(os.path.realpath(__file__)))
     hash = get_git_revision_hash(folder_prefix)
     cachefile = get_cachefile_name(hash)
@@ -512,13 +530,12 @@ if __name__ == '__main__':
             print('Writing ' + cachefile)
             json.dump(data, f)
 
-
-
     if len(sys.argv) > 1:
         if sys.argv[1] == key_invalidate:
             invalidate_cache('')
             sys.exit(0)
         if is_country_name_valid(sys.argv[1]):
-            print('')
+            print_country_rating(sys.argv[1], data)
+            sys.exit(0)
     else:
         print_topmost_20(data[key_ratings])
