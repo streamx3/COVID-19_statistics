@@ -42,11 +42,13 @@ key_header = 'header'
 key_series = 'series'
 key_active = 'active'
 key_country = 'country'
+key_ratings = 'ratings'
 key_province = 'province'
 key_mainland = 'mainland'
 key_mortality = 'm.'
 key_lethality = 'let'
 key_population = 'population'
+key_invalidate = 'invalidate'
 key_territories = 'territories'
 key_active_per_unknown = 'APU'  # unknown stands for population - confirmeds
 key_active_per_population = 'APP'
@@ -67,6 +69,7 @@ folder_data = 'csse_covid_19_data'
 folder_timeseries = 'csse_covid_19_time_series'
 
 file_ext_cache_json = '.cache.json'
+
 
 if not os.path.exists(folder_data):
     folder_prefix = os.path.join(folder_parrent, folder_COVID_19)
@@ -318,7 +321,7 @@ def print_table(array: [[str]], header_align: EAlign = EAlign.left,
         # retval.append(rowbuf)
 
 
-def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str = None):
+def calculate_ratings(data: Dict[str, Any], min_population: int = None, date: str = None) -> Dict:
     if date is None:
         date = list(data['US'][key_totals][key_deaths])[-1]
         print('Using data: ' + date + ' (latest downloaded)')
@@ -384,7 +387,13 @@ def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str
                             key_confirmed_per_population: confirmed_per_population,
                             key_population: data[country][key_population],
                             key_deaths: data[country][key_totals][key_deaths][date]}
+    return ratings
 
+
+def print_topmost_20(ratings: Dict[str, Any]):
+    if ratings is None:
+        sys.stderr.write('Error: Invalid ratings passed!\n')
+        sys.exit(-1)
     rating_keys = [key_mortality, key_lethality, key_active_per_population,
                    key_active_per_unknown, key_confirmed_per_population]
     tops = {}
@@ -431,7 +440,7 @@ def print_topmost_20(data: Dict[str, Any], min_population: int = None, date: str
         print_table(array2d, header_align=EAlign.left, data_align=EAlign.right,
                     header=True, col2_align=EAlign.left)
 
-
+    # TODO Continue here to implement 2x2 tables layout
     arr_mortality = print_rating('MORTALITY', key_mortality, 'per1M', key_population, key_deaths)
     arr_lethality = print_rating('KNOWN LETHALITY', key_lethality, '%', key_confirmed, key_deaths)
     arr_kn_pe_pop = print_rating('KNOWN ACTIVE PER POPULATION', key_active_per_population, '%',
@@ -483,6 +492,10 @@ def invalidate_cache(valid_hash: str):
             print('Removed outdated cache ' + c)
 
 
+def print_country_rating(contry: Dict):
+    pass
+
+
 if __name__ == '__main__':
     print('[WUHAN FLU rating calculator]')
     # print(os.path.dirname(os.path.realpath(__file__)))
@@ -493,10 +506,19 @@ if __name__ == '__main__':
     # print(data)
     if data is None:
         data = countries2json()
+        data = {key_series: data}
+        data[key_ratings] = calculate_ratings(data[key_series], min_population=1000000)
         with open(cachefile, 'w') as f:
             print('Writing ' + cachefile)
             json.dump(data, f)
+
+
+
+    if len(sys.argv) > 1:
+        if sys.argv[1] == key_invalidate:
+            invalidate_cache('')
+            sys.exit(0)
+        if is_country_name_valid(sys.argv[1]):
+            print('')
     else:
-        print()
-    # print(data)
-    print_topmost_20(data, min_population=1000000)
+        print_topmost_20(data[key_ratings])
