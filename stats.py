@@ -47,6 +47,7 @@ key_province = 'province'
 key_mainland = 'mainland'
 key_mortality = 'Mort'
 key_lethality = 'let'
+key_worldwide = 'Worldwide'
 key_population = 'population'
 key_invalidate = 'invalidate'
 key_territories = 'territories'
@@ -195,15 +196,16 @@ def load_json(type: str, countries: Dict = None):
     return countries
 
 
-def countries2json() -> Dict[str, Any]:
+def countries2dict() -> Dict[str, Any]:
     countries = None
     for case_type in case_types:
         countries = load_json(case_type, countries)
 
     n_territories = 0
     for country in countries:
-        ter = countries[country][key_territories]
-        n_territories += len(ter)
+        if key_territories in countries[country]:
+            ter = countries[country][key_territories]
+            n_territories += len(ter)
 
     print('Impored ' + str(len(countries)) + ' countries with ' + str(n_territories) + \
           ' territories from CSV.')
@@ -250,8 +252,9 @@ def countries2json() -> Dict[str, Any]:
                             countries[country][key_totals][case_type][date] += added
         else:
             for case_type in case_types:
-                countries[country][key_totals][case_type] = \
-                    countries[country][key_territories][key_mainland][case_type]
+                if key_mainland in countries[country][key_territories]:
+                    countries[country][key_totals][case_type] = \
+                        countries[country][key_territories][key_mainland][case_type]
             del countries[country][key_territories]
 
         # Writing progress
@@ -524,7 +527,7 @@ if __name__ == '__main__':
     data = load_cache_if_available(cachefile)
     # print(data)
     if data is None:
-        data = countries2json()
+        data = countries2dict()
         data = {key_series: data}
         data[key_ratings] = calculate_ratings(data[key_series], min_population=1000000)
         with open(cachefile, 'w') as f:
