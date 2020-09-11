@@ -516,6 +516,26 @@ def print_country_rating(country: str, data: Dict):
             print(remap[k] + ': ' + cdata[k])
 
 
+def merge_countries(first: Dict, subsequent: List[Dict]) -> Dict:
+    for country in subsequent:
+        if first is None:
+             first = country
+        else:
+            for case_type in case_types:
+                for date in country[key_totals][case_type]:
+                    a = int(country[key_totals][case_type][date])
+                    b = int(first[key_totals][case_type][date])
+                    first[key_totals][case_type][date] = a + b
+    return first
+
+
+def worldwide_merge(data: Dict) -> Dict:
+    world = None
+    for country in data:
+        world = merge_countries(world, [data[country]])
+    return world
+
+
 if __name__ == '__main__':
     print('[WUHAN FLU rating calculator]')
     # TODO handle launch from different directory
@@ -528,7 +548,8 @@ if __name__ == '__main__':
     # print(data)
     if data is None:
         data = countries2dict()
-        data = {key_series: data}
+        worldwide = worldwide_merge(data)
+        data = {key_series: data, key_worldwide: worldwide}
         data[key_ratings] = calculate_ratings(data[key_series], min_population=1000000)
         with open(cachefile, 'w') as f:
             print('Writing ' + cachefile)
